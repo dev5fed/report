@@ -73,6 +73,7 @@ def load_data(conn):
         "JOIN timesheet_status ON timesheet.timesheet_status_id = timesheet_status.id "
         "JOIN parameter tsp ON timesheet_status.status_id = tsp.id "
         "WHERE timesheet.\"manHoursNonBillable\" > '00:00' "
+        "ORDER BY code, date, project, module, status, billable"
     )
     return pd.read_sql(query, conn)
 
