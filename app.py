@@ -29,16 +29,16 @@ def load_data(conn):
         "CASE WHEN ops_project.project_name IS NOT NULL "
         "THEN ops_project.project_name "
         "ELSE NULL END as project, "
-        "CASE WHEN project.project_code IS NOT NULL "
-        "THEN project.project_code "
-        "ELSE NULL END as project_code, "
         "CASE WHEN ops_static_module.module_name IS NOT NULL "
         "THEN ops_static_module.module_name "
         "ELSE module.module_name END as module, "
         "tsp.parameter_name as status, "
         "'Billable' as billable, "
         'timesheet."manHoursBillable" as man_hours, '
-        "first_name || ' ' || last_name as name "
+        "first_name || ' ' || last_name as name, "
+        "CASE WHEN project.project_code IS NOT NULL "
+        "THEN project.project_code "
+        "ELSE NULL END as project_code "
         "FROM employee "
         "JOIN job ON employee.job_id = job.id "
         "JOIN timesheet ON employee.id = timesheet.employee_id "
@@ -46,7 +46,6 @@ def load_data(conn):
         "LEFT JOIN project ON ops_project.project_id = project.id "
         "JOIN timesheet_status ON timesheet.timesheet_status_id = timesheet_status.id "
         "JOIN parameter tsp ON timesheet_status.status_id = tsp.id "
-        # join with module in ops_static_module or module in project
         "LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id "
         "LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id "
         'LEFT JOIN "module" ON ops_project_module.module_id = "module".id '
@@ -57,16 +56,16 @@ def load_data(conn):
         "CASE WHEN ops_project.project_name IS NOT NULL "
         "THEN ops_project.project_name "
         "ELSE NULL END as project, "
-        "CASE WHEN project.project_code IS NOT NULL "
-        "THEN project.project_code "
-        "ELSE NULL END as project_code, "
         "CASE WHEN ops_static_module.module_name IS NOT NULL "
         "THEN ops_static_module.module_name "
         "ELSE module.module_name END as module, "
         "tsp.parameter_name as status, "
         "'Non-Billable' as billable, "
         '"manHoursNonBillable" as man_hours, '
-        "first_name || ' ' || last_name as name "
+        "first_name || ' ' || last_name as name, "
+        "CASE WHEN project.project_code IS NOT NULL "
+        "THEN project.project_code "
+        "ELSE NULL END as project_code "
         "FROM employee "
         "JOIN job ON employee.job_id = job.id "
         "JOIN timesheet ON employee.id = timesheet.employee_id "
@@ -81,6 +80,20 @@ def load_data(conn):
         "ORDER BY code, date, project, module, status, billable"
     )
     return pd.read_sql(query, conn)
+
+
+# Convert man_hours from interval to hours
+def duration_to_hours(duration):
+    if isinstance(duration, str):
+        # Convert string to timedelta
+        duration = pd.to_timedelta(duration)
+    elif isinstance(duration, pd.Timedelta):
+        pass  # Already in timedelta format
+    else:
+        return 0  # Handle unexpected types
+
+    # Convert timedelta to total hours
+    return duration.total_seconds() / 3600
 
 
 st.title("Timesheet Monitoring Sementara")
@@ -136,12 +149,17 @@ if status_filter:
 # add multi-select filter for billable
 billable_options = df["billable"].unique().tolist()
 default_billable_options = ["Billable", "Non-Billable"]
-billable_filter = st.sidebar.multiselect(
-    "Billable", billable_options, default=default_billable_options
-)
+billable_filter = st.sidebar.multiselect("Billable", billable_options, default=[])
 # Filter the DataFrame if any billable option is selected
 if billable_filter:
     df = df[df["billable"].isin(billable_filter)]
+
+# add multi-select filter for project
+project_options = df["project"].dropna().unique().tolist()
+project_filter = st.sidebar.multiselect("Project", project_options, default=[])
+# Filter the DataFrame if any project is selected
+if project_filter:
+    df = df[df["project"].isin(project_filter)]
 
 
 # Ensure start_date is before end_date
@@ -162,7 +180,10 @@ filtered_df = df[
 ]
 
 # Download button
-csv = filtered_df.to_csv(index=False).encode("utf-8")
+downloaded_csv_df = filtered_df.copy()
+downloaded_csv_df["man_hours"] = downloaded_csv_df["man_hours"].apply(duration_to_hours)
+
+csv = downloaded_csv_df.to_csv(index=False).encode("utf-8")
 st.download_button(
     label="Download CSV",
     data=csv,
@@ -179,20 +200,6 @@ st.write(f"Number of records: {filtered_df.shape[0]}")
 # st.dataframe(filtered_df)
 # Display the DataFrame as a table
 # st.table(filtered_df)
-
-
-# Convert man_hours from interval to hours
-def duration_to_hours(duration):
-    if isinstance(duration, str):
-        # Convert string to timedelta
-        duration = pd.to_timedelta(duration)
-    elif isinstance(duration, pd.Timedelta):
-        pass  # Already in timedelta format
-    else:
-        return 0  # Handle unexpected types
-
-    # Convert timedelta to total hours
-    return duration.total_seconds() / 3600
 
 
 # Convert 'man_hours' from interval to hours
