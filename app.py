@@ -104,6 +104,19 @@ if os.path.exists(mapping_file):
     df["project_name"] = df["project_name"].fillna(df["project"])
     df.drop(columns=["project"], inplace=True)
     df.rename(columns={"project_name": "project"}, inplace=True)
+    df = df[
+        [
+            "code",
+            "date",
+            "project",
+            "module",
+            "status",
+            "billable",
+            "man_hours",
+            "name",
+            "project_code",
+        ]
+    ]
 else:
     st.warning(f"Mapping file '{mapping_file}' not found. Please upload the file.")
 
