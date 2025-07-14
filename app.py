@@ -111,6 +111,16 @@ status_filter = st.sidebar.multiselect(
 if status_filter:
     df = df[df["status"].isin(status_filter)]
 
+# add multi-select filter for billable
+billable_options = df["billable"].unique().tolist()
+default_billable_options = ["Billable", "Non-Billable"]
+billable_filter = st.sidebar.multiselect(
+    "Billable", billable_options, default=default_billable_options
+)
+# Filter the DataFrame if any billable option is selected
+if billable_filter:
+    df = df[df["billable"].isin(billable_filter)]
+
 
 # Ensure start_date is before end_date
 if start_date > end_date:
