@@ -26,9 +26,12 @@ def load_data(conn):
     query = (
         "SELECT employee_code as code, "
         "timesheet.date as date, "
-        "CASE WHEN project.project_name IS NOT NULL "
-        "THEN project.project_name "
-        "ELSE ops_project.project_name END as project, "
+        "CASE WHEN ops_project.project_name IS NOT NULL "
+        "THEN ops_project.project_name "
+        "ELSE NULL END as project, "
+        "CASE WHEN project.project_code IS NOT NULL "
+        "THEN project.project_code "
+        "ELSE NULL END as project_code, "
         "CASE WHEN ops_static_module.module_name IS NOT NULL "
         "THEN ops_static_module.module_name "
         "ELSE module.module_name END as module, "
@@ -51,9 +54,12 @@ def load_data(conn):
         "UNION ALL "
         "SELECT employee_code as code, "
         "timesheet.date as date, "
-        "CASE WHEN project.project_name IS NOT NULL "
-        "THEN project.project_name "
-        "ELSE ops_project.project_name END as project, "
+        "CASE WHEN ops_project.project_name IS NOT NULL "
+        "THEN ops_project.project_name "
+        "ELSE NULL END as project, "
+        "CASE WHEN project.project_code IS NOT NULL "
+        "THEN project.project_code "
+        "ELSE NULL END as project_code, "
         "CASE WHEN ops_static_module.module_name IS NOT NULL "
         "THEN ops_static_module.module_name "
         "ELSE module.module_name END as module, "
@@ -64,7 +70,6 @@ def load_data(conn):
         "FROM employee "
         "JOIN job ON employee.job_id = job.id "
         "JOIN timesheet ON employee.id = timesheet.employee_id "
-        # join with module in ops_static_module or module in project
         "LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id "
         "LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id "
         'LEFT JOIN "module" ON ops_project_module.module_id = "module".id '
@@ -83,6 +88,23 @@ st.title("Timesheet Monitoring Sementara")
 # Load data
 conn = get_connection()
 df = load_data(conn)
+
+# join mapping project_code to project_name
+# read mapping from excel file
+mapping_file = "master project mapping.xlsx"
+if os.path.exists(mapping_file):
+    # read frok B:C
+    mapping_df = pd.read_excel(mapping_file, usecols="B:C")
+    mapping_df.columns = ["project_name", "project_code"]
+    # merge with df
+    df = df.merge(mapping_df, on="project_code", how="left")
+    # fill project_name with project if project_name is null
+    df["project_name"] = df["project_name"].fillna(df["project"])
+    df["project"] = df["project_name"]
+    df.drop(columns=["project_name"], inplace=True)
+else:
+    st.warning(f"Mapping file '{mapping_file}' not found. Please upload the file.")
+
 
 # Filters by employee_code and Date Range
 st.sidebar.header("Filters")
