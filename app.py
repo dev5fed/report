@@ -42,10 +42,10 @@ def load_data(conn):
         "FROM employee "
         "JOIN job ON employee.job_id = job.id "
         "JOIN timesheet ON employee.id = timesheet.employee_id "
-        "LEFT JOIN ops_project ON timesheet.ops_project_id = ops_project.id "
-        "LEFT JOIN project ON ops_project.project_id = project.id "
+        "JOIN ops_project ON timesheet.ops_project_id = ops_project.id "
         "JOIN timesheet_status ON timesheet.timesheet_status_id = timesheet_status.id "
         "JOIN parameter tsp ON timesheet_status.status_id = tsp.id "
+        "LEFT JOIN project ON ops_project.project_id = project.id "
         "LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id "
         "LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id "
         'LEFT JOIN "module" ON ops_project_module.module_id = "module".id '
@@ -69,13 +69,13 @@ def load_data(conn):
         "FROM employee "
         "JOIN job ON employee.job_id = job.id "
         "JOIN timesheet ON employee.id = timesheet.employee_id "
+        "JOIN ops_project ON timesheet.ops_project_id = ops_project.id "
+        "JOIN timesheet_status ON timesheet.timesheet_status_id = timesheet_status.id "
+        "JOIN parameter tsp ON timesheet_status.status_id = tsp.id "
+        "LEFT JOIN project ON ops_project.project_id = project.id "
         "LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id "
         "LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id "
         'LEFT JOIN "module" ON ops_project_module.module_id = "module".id '
-        "LEFT JOIN ops_project ON timesheet.ops_project_id = ops_project.id "
-        "LEFT JOIN project ON ops_project.project_id = project.id "
-        "JOIN timesheet_status ON timesheet.timesheet_status_id = timesheet_status.id "
-        "JOIN parameter tsp ON timesheet_status.status_id = tsp.id "
         "WHERE timesheet.\"manHoursNonBillable\" > '00:00' "
         "ORDER BY code, date, project, module, status, billable"
     )
@@ -109,12 +109,17 @@ if os.path.exists(mapping_file):
     # read frok B:C
     mapping_df = pd.read_excel(mapping_file, usecols="B:C")
     mapping_df.columns = ["project_name", "project_code"]
-    # merge with df
+    # remove empty rows
+    mapping_df = mapping_df.dropna(subset=["project_name", "project_code"])
+
+    # add project_name to df
     df = df.merge(mapping_df, on="project_code", how="left")
-    # fill project_name with project if project_name is null
     df["project_name"] = df["project_name"].fillna(df["project"])
-    df["project"] = df["project_name"]
-    df.drop(columns=["project_name"], inplace=True)
+    # rename project_name to project
+    df.drop(columns=["project"], inplace=True)
+    df.rename(columns={"project_name": "project"}, inplace=True)
+
+
 else:
     st.warning(f"Mapping file '{mapping_file}' not found. Please upload the file.")
 
