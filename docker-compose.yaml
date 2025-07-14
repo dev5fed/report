@@ -11,3 +11,5 @@ services:
       - STREAMLIT_SERVER_ENABLECORS=false
     ports:
       - "8501:8501"
+    volumes:
+      - ./master project mapping.xlsx:/app/master project mapping.xlsx
