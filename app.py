@@ -187,8 +187,8 @@ with main_tab1:
     st.write(filtered_df)
     st.write(f"Number of records: {filtered_df.shape[0]}")
 
-    filtered_df["man_hours"] = filtered_df["man_hours"].apply(
-        convert_timedelta_to_hours
+    filtered_df["man_hours"] = (
+        filtered_df["man_hours"].apply(convert_timedelta_to_hours).astype(float)
     )
 
     if not filtered_df.empty:
@@ -204,7 +204,7 @@ with main_tab1:
         def highlight_zeros(val):
             return "background-color: red" if val == 0 else ""
 
-        styled_pivot = pivot_table.style.applymap(
+        styled_pivot = pivot_table.style.map(
             highlight_zeros,
             subset=pd.IndexSlice[
                 pivot_table.index[:-1],
