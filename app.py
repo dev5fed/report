@@ -4,96 +4,82 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from io import BytesIO
-from psycopg2.pool import SimpleConnectionPool
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 
 load_dotenv()
 
 
 @st.cache_resource(ttl=300)  # expires after 5 minutes
-def get_pool():
-    return SimpleConnectionPool(
-        minconn=1,
-        maxconn=10,
-        host=os.environ.get("POSTGRES_HOST"),
-        port=os.environ.get("POSTGRES_PORT"),
-        dbname=os.environ.get("POSTGRES_DATABASE"),
-        user=os.environ.get("POSTGRES_USERNAME"),
-        password=os.environ.get("POSTGRES_PASSWORD"),
-    )
-
-
-def get_connection():
-    pool = get_pool()
-    return pool.getconn()
-
-
-def release_connection(conn):
-    pool = get_pool()
-    pool.putconn(conn)
+def get_engine() -> Engine:
+    user = os.environ.get("POSTGRES_USERNAME")
+    password = os.environ.get("POSTGRES_PASSWORD")
+    host = os.environ.get("POSTGRES_HOST")
+    port = os.environ.get("POSTGRES_PORT")
+    db = os.environ.get("POSTGRES_DATABASE")
+    url = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+    return create_engine(url, pool_size=10, max_overflow=20)
 
 
 def load_timesheet_data():
-    conn = get_connection()
-    try:
-        query = """
-            SELECT employee_code as code, 
-                   timesheet.date as date, 
-                   CASE WHEN ops_project.project_name IS NOT NULL 
-                        THEN ops_project.project_name 
-                        ELSE NULL END as project, 
-                   CASE WHEN ops_static_module.module_name IS NOT NULL 
-                        THEN ops_static_module.module_name 
-                        ELSE module.module_name END as module, 
-                   tsp.parameter_name as status, 
-                   'Billable' as billable, 
-                   timesheet."manHoursBillable" as man_hours, 
-                   first_name || ' ' || last_name as name, 
-                   CASE WHEN project.project_code IS NOT NULL 
-                        THEN project.project_code 
-                        ELSE NULL END as project_code 
-            FROM employee 
-            JOIN job ON employee.job_id = job.id 
-            JOIN timesheet ON employee.id = timesheet.employee_id 
-            JOIN ops_project ON timesheet.ops_project_id = ops_project.id 
-            JOIN timesheet_status ON timesheet.timesheet_status_id = timesheet_status.id 
-            JOIN parameter tsp ON timesheet_status.status_id = tsp.id 
-            LEFT JOIN project ON ops_project.project_id = project.id 
-            LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id 
-            LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id 
-            LEFT JOIN "module" ON ops_project_module.module_id = "module".id 
-            WHERE timesheet."manHoursBillable" > '00:00' 
-            UNION ALL 
-            SELECT employee_code as code, 
-                   timesheet.date as date, 
-                   CASE WHEN ops_project.project_name IS NOT NULL 
-                        THEN ops_project.project_name 
-                        ELSE NULL END as project, 
-                   CASE WHEN ops_static_module.module_name IS NOT NULL 
-                        THEN ops_static_module.module_name 
-                        ELSE module.module_name END as module, 
-                   tsp.parameter_name as status, 
-                   'Non-Billable' as billable, 
-                   "manHoursNonBillable" as man_hours, 
-                   first_name || ' ' || last_name as name, 
-                   CASE WHEN project.project_code IS NOT NULL 
-                        THEN project.project_code 
-                        ELSE NULL END as project_code 
-            FROM employee 
-            JOIN job ON employee.job_id = job.id 
-            JOIN timesheet ON employee.id = timesheet.employee_id 
-            JOIN ops_project ON timesheet.ops_project_id = ops_project.id 
-            JOIN timesheet_status ON timesheet.timesheet_status_id = timesheet_status.id 
-            JOIN parameter tsp ON timesheet_status.status_id = tsp.id 
-            LEFT JOIN project ON ops_project.project_id = project.id 
-            LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id 
-            LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id 
-            LEFT JOIN "module" ON ops_project_module.module_id = "module".id 
-            WHERE timesheet."manHoursNonBillable" > '00:00' 
-            ORDER BY code, date, project, module, status, billable
-        """
-        df = pd.read_sql(query, conn)
-    finally:
-        release_connection(conn)
+    engine = get_engine()
+    query = """
+        SELECT employee_code as code, 
+               timesheet.date as date, 
+               CASE WHEN ops_project.project_name IS NOT NULL 
+                    THEN ops_project.project_name 
+                    ELSE NULL END as project, 
+               CASE WHEN ops_static_module.module_name IS NOT NULL 
+                    THEN ops_static_module.module_name 
+                    ELSE module.module_name END as module, 
+               tsp.parameter_name as status, 
+               'Billable' as billable, 
+               timesheet."manHoursBillable" as man_hours, 
+               first_name || ' ' || last_name as name, 
+               CASE WHEN project.project_code IS NOT NULL 
+                    THEN project.project_code 
+                    ELSE NULL END as project_code 
+        FROM employee 
+        JOIN job ON employee.job_id = job.id 
+        JOIN timesheet ON employee.id = timesheet.employee_id 
+        JOIN ops_project ON timesheet.ops_project_id = ops_project.id 
+        JOIN timesheet_status ON timesheet.timesheet_status_id = timesheet_status.id 
+        JOIN parameter tsp ON timesheet_status.status_id = tsp.id 
+        LEFT JOIN project ON ops_project.project_id = project.id 
+        LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id 
+        LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id 
+        LEFT JOIN "module" ON ops_project_module.module_id = "module".id 
+        WHERE timesheet."manHoursBillable" > '00:00' 
+        UNION ALL 
+        SELECT employee_code as code, 
+               timesheet.date as date, 
+               CASE WHEN ops_project.project_name IS NOT NULL 
+                    THEN ops_project.project_name 
+                    ELSE NULL END as project, 
+               CASE WHEN ops_static_module.module_name IS NOT NULL 
+                    THEN ops_static_module.module_name 
+                    ELSE module.module_name END as module, 
+               tsp.parameter_name as status, 
+               'Non-Billable' as billable, 
+               "manHoursNonBillable" as man_hours, 
+               first_name || ' ' || last_name as name, 
+               CASE WHEN project.project_code IS NOT NULL 
+                    THEN project.project_code 
+                    ELSE NULL END as project_code 
+        FROM employee 
+        JOIN job ON employee.job_id = job.id 
+        JOIN timesheet ON employee.id = timesheet.employee_id 
+        JOIN ops_project ON timesheet.ops_project_id = ops_project.id 
+        JOIN timesheet_status ON timesheet.timesheet_status_id = timesheet_status.id 
+        JOIN parameter tsp ON timesheet_status.status_id = tsp.id 
+        LEFT JOIN project ON ops_project.project_id = project.id 
+        LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id 
+        LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id 
+        LEFT JOIN "module" ON ops_project_module.module_id = "module".id 
+        WHERE timesheet."manHoursNonBillable" > '00:00' 
+        ORDER BY code, date, project, module, status, billable
+    """
+    df = pd.read_sql(query, engine)
     return df
 
 
