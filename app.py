@@ -31,6 +31,8 @@ def load_timesheet_data():
                     ELSE NULL END as project, 
                CASE WHEN ops_static_module.module_name IS NOT NULL 
                     THEN ops_static_module.module_name 
+                    WHEN ops_general_module.module_name IS NOT NULL
+                    THEN ops_general_module.module_name
                     ELSE module.module_name END as module, 
                tsp.parameter_name as status, 
                'Billable' as billable, 
@@ -49,6 +51,7 @@ def load_timesheet_data():
         LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id 
         LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id 
         LEFT JOIN "module" ON ops_project_module.module_id = "module".id 
+        LEFT JOIN ops_general_module ON ops_project_module.ops_general_module_id = ops_general_module.id
         WHERE timesheet."manHoursBillable" > '00:00' 
         UNION ALL 
         SELECT employee_code as code, 
@@ -58,6 +61,8 @@ def load_timesheet_data():
                     ELSE NULL END as project, 
                CASE WHEN ops_static_module.module_name IS NOT NULL 
                     THEN ops_static_module.module_name 
+                    WHEN ops_general_module.module_name IS NOT NULL
+                    THEN ops_general_module.module_name
                     ELSE module.module_name END as module, 
                tsp.parameter_name as status, 
                'Non-Billable' as billable, 
@@ -76,6 +81,7 @@ def load_timesheet_data():
         LEFT JOIN ops_static_module ON timesheet.ops_static_module_id = ops_static_module.id 
         LEFT JOIN ops_project_module ON timesheet.ops_project_module_id = ops_project_module.id 
         LEFT JOIN "module" ON ops_project_module.module_id = "module".id 
+        LEFT JOIN ops_general_module ON ops_project_module.ops_general_module_id = ops_general_module.id
         WHERE timesheet."manHoursNonBillable" > '00:00' 
         ORDER BY code, date, project, module, status, billable
     """
@@ -187,8 +193,8 @@ with main_tab1:
     st.write(filtered_df)
     st.write(f"Number of records: {filtered_df.shape[0]}")
 
-    filtered_df["man_hours"] = (
-        filtered_df["man_hours"].apply(convert_timedelta_to_hours).astype(float)
+    filtered_df["man_hours"] = filtered_df["man_hours"].apply(
+        convert_timedelta_to_hours
     )
 
     if not filtered_df.empty:
