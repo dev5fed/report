@@ -19,8 +19,8 @@ mandays_option = st.sidebar.selectbox(
     ],
     format_func=lambda x: {
         "remaining_mandays": "Total Remaining Mandays",
-        "remaining_billable_mandays": "Remaining Billable Mandays",
-        "remaining_non_billable_mandays": "Remaining Non-Billable Mandays",
+        "remaining_billable_mandays": "Remaining Billable",
+        "remaining_non_billable_mandays": "Remaining Non-Billable",
     }[x],
 )
 
@@ -38,10 +38,16 @@ pivot_df = df.pivot_table(
 pivot_df = pivot_df.merge(
     mapping_df, left_index=True, right_on="project_code", how="left"
 )
+# reset index
+pivot_df = pivot_df.reset_index()
 
 # Reorder columns to put project_name first
 if "project_name" in pivot_df.columns:
-    cols = ["project_name"] + [col for col in pivot_df.columns if col != "project_name"]
+    cols = ["project_code", "project_name"] + [
+        col
+        for col in pivot_df.columns
+        if col not in ["project_code", "project_name", "index"]
+    ]
     pivot_df = pivot_df[cols]
 
 # Display the selected mandays type as a subtitle
