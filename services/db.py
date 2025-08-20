@@ -114,7 +114,10 @@ def load_planned_vs_realized_mandays():
           FROM timesheet t
           LEFT JOIN employee e ON t.employee_id = e.id
           LEFT JOIN ops_project op ON op.id = t.ops_project_id 
+          LEFT JOIN timesheet_status ts ON t.timesheet_status_id = ts.id
           JOIN project p ON p.id = op.project_id
+          LEFT JOIN parameter tss_param ON ts.status_id = tss_param.id
+          WHERE tss_param.parameter_name IN ('Modified','Approved')
           GROUP BY op.id, e.id
         )
         SELECT

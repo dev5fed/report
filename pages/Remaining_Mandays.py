@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -5,7 +6,7 @@ from datetime import datetime
 from services.db import load_planned_vs_realized_mandays
 
 
-st.header("Timesheet Per Project")
+st.header("Remaining Mandays")
 
 # Sidebar for selecting which remaining mandays to display
 st.sidebar.header("Display Options")
@@ -24,11 +25,24 @@ mandays_option = st.sidebar.selectbox(
 )
 
 mapping_file = "master project mapping.xlsx"
+if os.path.exists(mapping_file):
+    mapping_df = pd.read_excel(mapping_file, usecols="B:C")
+    mapping_df.columns = ["project_name", "project_code"]
+    mapping_df = mapping_df.dropna(subset=["project_name", "project_code"])
 
 df = load_planned_vs_realized_mandays()
 pivot_df = df.pivot_table(
     columns="employee_code", index="project", values=mandays_option, fill_value=0
 )
+
+pivot_df = pivot_df.merge(
+    mapping_df, left_index=True, right_on="project_code", how="left"
+)
+
+# Reorder columns to put project_name first
+if "project_name" in pivot_df.columns:
+    cols = ["project_name"] + [col for col in pivot_df.columns if col != "project_name"]
+    pivot_df = pivot_df[cols]
 
 # Display the selected mandays type as a subtitle
 st.subheader(f"Showing: {mandays_option.replace('_', ' ').title()}")
