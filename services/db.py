@@ -8,7 +8,7 @@ def get_engine() -> Engine:
     return create_engine(config.SQLALCHEMY_DATABASE_URL, pool_size=10, max_overflow=20)
 
 
-def load_timesheet_data():
+def load_timesheet_data(start_date, end_date):
     engine = get_engine()
     query = """
         SELECT employee_code as code, 
@@ -40,6 +40,7 @@ def load_timesheet_data():
         LEFT JOIN "module" ON ops_project_module.module_id = "module".id 
         LEFT JOIN ops_general_module ON ops_project_module.ops_general_module_id = ops_general_module.id
         WHERE timesheet."manHoursBillable" > '00:00' 
+        AND timesheet.date BETWEEN %(start_date)s AND %(end_date)s
         UNION ALL 
         SELECT employee_code as code, 
                timesheet.date as date, 
@@ -70,7 +71,10 @@ def load_timesheet_data():
         LEFT JOIN "module" ON ops_project_module.module_id = "module".id 
         LEFT JOIN ops_general_module ON ops_project_module.ops_general_module_id = ops_general_module.id
         WHERE timesheet."manHoursNonBillable" > '00:00' 
+        AND timesheet.date BETWEEN %(start_date)s AND %(end_date)s
         ORDER BY code, date, project, module, status, billable
     """
-    df = pd.read_sql(query, engine)
+    df = pd.read_sql(
+        query, engine, params={"start_date": start_date, "end_date": end_date}
+    )
     return df
