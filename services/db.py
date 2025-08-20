@@ -78,3 +78,62 @@ def load_timesheet_data(start_date, end_date):
         query, engine, params={"start_date": start_date, "end_date": end_date}
     )
     return df
+
+
+def load_planned_vs_realized_mandays():
+    """
+    Load planned vs realized mandays comparison using CTEs
+    """
+    engine = get_engine()
+    query = """
+        WITH planned AS (
+          SELECT
+          ANY_VALUE(p.project_code) project,
+          m.ops_project_id,
+          SUM(m."mandaysBillable") billable_mandays,
+          SUM(m."mandaysNonBillable") non_billable_mandays,
+          SUM(m."mandaysBillable") +
+          SUM(m."mandaysNonBillable") total_mandays,
+          ANY_VALUE(e.employee_code) employee_code
+          FROM public.project p
+          LEFT JOIN client c ON c.id = p.client_id 
+          LEFT JOIN ops_project op ON op.project_id = p.id
+          LEFT JOIN mandays m ON m.ops_project_id = op.id
+          LEFT JOIN employee e ON e.id = m.employee_id 
+          GROUP BY m.ops_project_id, m.employee_id
+        ),
+        realized AS (
+          SELECT 
+          ANY_VALUE(p.project_code) project,
+          op.id as ops_project_id,
+          SUM(EXTRACT(epoch FROM t."manHoursBillable"))/3600/8 billable_mandays,
+          SUM(EXTRACT(epoch FROM t."manHoursNonBillable"))/3600/8 non_billable_mandays,
+          SUM(EXTRACT(epoch FROM t."manHoursBillable"))/3600/8 +
+          SUM(EXTRACT(epoch FROM t."manHoursNonBillable"))/3600/8 total_mandays,
+          ANY_VALUE(e.employee_code) employee_code
+          FROM timesheet t
+          LEFT JOIN employee e ON t.employee_id = e.id
+          LEFT JOIN ops_project op ON op.id = t.ops_project_id 
+          JOIN project p ON p.id = op.project_id
+          GROUP BY op.id, e.id
+        )
+        SELECT
+          p.project,
+          p.ops_project_id,
+          p.total_mandays,
+          p.employee_code,
+          COALESCE(r.billable_mandays, 0) AS total_realized_mandays,
+          (p.billable_mandays - COALESCE(r.billable_mandays, 0)) AS remaining_billable_mandays,
+          COALESCE(r.non_billable_mandays, 0) AS total_realized_mandays,
+          (p.non_billable_mandays - COALESCE(r.non_billable_mandays, 0)) AS remaining_non_billable_mandays,
+          COALESCE(r.total_mandays, 0) AS total_realized_mandays,
+          (p.total_mandays - COALESCE(r.total_mandays, 0)) AS remaining_mandays
+        FROM planned p
+        LEFT JOIN realized r
+            ON p.ops_project_id = r.ops_project_id
+            AND p.employee_code = r.employee_code
+        ORDER BY p.ops_project_id
+    """
+
+    df = pd.read_sql(query, engine)
+    return df

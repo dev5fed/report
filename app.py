@@ -52,7 +52,7 @@ if os.path.exists(mapping_file):
 else:
     st.warning(f"Mapping file '{mapping_file}' not found. Please upload the file.")
 
-status_options = df["status"].unique().tolist()
+status_options = ["Approved", "Modified", "Pending", "Draft"]
 default_status_options = ["Approved", "Modified"]
 status_filter = st.sidebar.multiselect(
     "Timesheet Status", status_options, default=default_status_options
